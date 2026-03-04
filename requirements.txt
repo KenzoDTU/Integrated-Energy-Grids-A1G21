@@ -8,5 +8,6 @@ xarray>=2023.0
 networkx>=3.0
 matplotlib>=3.7
 jupyterlab>=4.0
+ipykernel>=6.29
 openpyxl>=3.1
 pyyaml>=6.0
