@@ -222,7 +222,7 @@ def plot_mismatch_analysis(n, start_date, end_date):
     # Add energy info in legend
     plt.legend([
         f'Mismatch Curve',
-        f'Potential Curtailment: {curtailment_twh:.2f} TWh',
+        f'Curtailment: {curtailment_twh:.2f} TWh',
         f'Backup Energy Needed: {backup_needed_twh:.2f} TWh'
     ], loc='upper right')
     
