@@ -1,5 +1,11 @@
 1. plot:
 
-- generation by each technology with the demand
-- market price with scarsity revenue
-- annual production for each technology
+- generation by each technology with the demand (time series)
+- market price with scarsity revenue (time series)
+- duration curve prices
+- duration curve stacked area
+- curtailment each year
+- backup energy each year
+- annual production for each technology (bar chart)
+- capacity installed (bar chart)
+- annual cost each technology bar chart
