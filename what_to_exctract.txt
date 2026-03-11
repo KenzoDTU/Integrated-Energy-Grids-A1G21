@@ -1,0 +1,5 @@
+1. plot:
+
+- generation by each technology with the demand
+- market price with scarsity revenue
+- annual production for each technology
