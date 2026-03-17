@@ -420,6 +420,13 @@ def plot_mismatch_duration_curve(n, start_date, end_date):
 
 
 
+
+
+
+
+
+
+
 # STEP B: INTERANNUAL VARIABILITY FUNCTIONS
 
 # --- 1. Capacities per year + Box plot ---
@@ -878,5 +885,153 @@ def plot_profit_heatmap(results):
     
     axes[-1].set_xlabel("Month", fontsize=12)
     fig.suptitle("Monthly Scarcity Profit by Technology & Year", fontsize=16, y=1.01)
+    plt.tight_layout()
+    plt.show()
+
+
+
+
+
+
+
+
+
+
+# STEP C: STORAGE ANALYSIS FUNCTIONS
+
+# --- 1. PLOT GENERATION MIX WITH STORAGE ---
+def plot_generation_mix_storage(n, start_date, end_date):
+    """
+    Plots stacked generation with storage. Discharge is stacked positive,
+    charging is shown below zero.
+    """
+    p_gen = n.generators_t.p.loc[start_date:end_date]
+    p_store = n.storage_units_t.p.loc[start_date:end_date]
+    p_store.columns = n.storage_units.carrier
+    
+    p_discharge = p_store.clip(lower=0)
+    p_charge = p_store.clip(upper=0)
+    
+    df_pos = pd.concat([p_gen, p_discharge], axis=1)
+    cols_pos = [c for c in DESIRED_ORDER if c in df_pos.columns]
+    df_pos = df_pos[cols_pos]
+    
+    load = n.loads_t.p_set.sum(axis=1).loc[start_date:end_date]
+    
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    df_pos.plot.area(
+        ax=ax, stacked=True,
+        color=[COLORS.get(c, '#333') for c in df_pos.columns],
+        alpha=0.8
+    )
+    
+    for col in p_charge.columns:
+        ax.fill_between(p_charge.index, p_charge[col], 0,
+                        color=COLORS.get(col, '#333'), alpha=0.8,
+                        label=f'{col} (charging)', zorder=5)
+    
+    load.plot(ax=ax, color='black', linewidth=2, label='Demand', linestyle='--')
+    
+    ax.axhline(0, color='black', lw=1)
+    
+    # Force y-axis to include negative values
+    y_min = p_charge.min().min() * 1.1
+    y_max = ax.get_ylim()[1]
+    ax.set_ylim(y_min, y_max)
+    
+    ax.set_title(f"Generation Mix & Storage ({start_date} to {end_date})", fontsize=15)
+    ax.set_ylabel("Power [MW]", fontsize=12)
+    ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    ax.grid(True, axis='y', linestyle='--', alpha=0.5)
+    
+    plt.tight_layout()
+    plt.show()
+
+# --- 2. Battery State of Charge ---
+# --- C1. Battery State of Charge ---
+def plot_battery_soc(n, max_hours):
+    """
+    Heatmap of SOC (days x hours) + summer/winter week detail.
+    """
+    soc = n.storage_units_t.state_of_charge.iloc[:, 0]
+    soc_pct = soc / (n.storage_units.p_nom_opt.iloc[0] * max_hours) * 100
+    year = str(soc.index[0].year)
+    
+    fig, axes = plt.subplots(3, 1, figsize=(14, 13),
+                              gridspec_kw={'height_ratios': [2, 1, 1]})
+    
+    # --- Top: Heatmap ---
+    pivot = soc_pct.to_frame('soc')
+    pivot['day'] = pivot.index.dayofyear
+    pivot['hour'] = pivot.index.hour
+    heatmap_data = pivot.pivot_table(index='hour', columns='day', values='soc')
+    
+    im = axes[0].imshow(heatmap_data.values, aspect='auto', cmap='YlGnBu',
+                         origin='lower', vmin=0, vmax=100,
+                         extent=[1, 365, 0, 24])
+    axes[0].set_title(f"Battery State of Charge — {year}", fontsize=14)
+    axes[0].set_xlabel("Day of Year")
+    axes[0].set_ylabel("Hour of Day")
+    cbar = fig.colorbar(im, ax=axes[0], shrink=0.8, pad=0.02)
+    cbar.set_label("SOC [%]", fontsize=10)
+    
+    # --- Middle: Summer week ---
+    soc_pct.loc[f'{year}-07-01':f'{year}-07-08'].plot(ax=axes[1], color='#8e44ad', linewidth=1.5)
+    axes[1].set_title("Summer Week (Jul 1–8)", fontsize=13)
+    axes[1].set_ylabel("SOC [%]")
+    axes[1].set_ylim(0, 100)
+    axes[1].grid(True, linestyle='--', alpha=0.4)
+    
+    # --- Bottom: Winter week ---
+    soc_pct.loc[f'{year}-01-01':f'{year}-01-08'].plot(ax=axes[2], color='#8e44ad', linewidth=1.5)
+    axes[2].set_title("Winter Week (Jan 1–8)", fontsize=13)
+    axes[2].set_ylabel("SOC [%]")
+    axes[2].set_ylim(0, 100)
+    axes[2].grid(True, linestyle='--', alpha=0.4)
+    
+    plt.tight_layout()
+    plt.show()
+
+
+# --- 3. Battery operation at different time scales ---
+def plot_battery_timescales(n):
+    """
+    Plots average battery dispatch by hour of day, day of week, and month.
+    Shows how the battery balances at intraday, weekly, and seasonal scales.
+    """
+    battery_p = n.storage_units_t.p.iloc[:, 0]
+    
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+    
+    # Intraday
+    hourly_avg = battery_p.groupby(battery_p.index.hour).mean()
+    axes[0].bar(hourly_avg.index, hourly_avg.values, color='#8e44ad', alpha=0.8)
+    axes[0].axhline(0, color='black', linewidth=0.8)
+    axes[0].set_xlabel("Hour of Day")
+    axes[0].set_ylabel("Avg Power [MW]")
+    axes[0].set_title("Intraday Pattern", fontsize=13)
+    axes[0].grid(True, axis='y', linestyle='--', alpha=0.4)
+    
+    # Weekly
+    daily_avg = battery_p.groupby(battery_p.index.dayofweek).mean()
+    days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    axes[1].bar(days, daily_avg.values, color='#8e44ad', alpha=0.8)
+    axes[1].axhline(0, color='black', linewidth=0.8)
+    axes[1].set_ylabel("Avg Power [MW]")
+    axes[1].set_title("Weekly Pattern", fontsize=13)
+    axes[1].grid(True, axis='y', linestyle='--', alpha=0.4)
+    
+    # Seasonal
+    monthly_avg = battery_p.groupby(battery_p.index.month).mean()
+    months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    axes[2].bar(months, monthly_avg.values, color='#8e44ad', alpha=0.8)
+    axes[2].axhline(0, color='black', linewidth=0.8)
+    axes[2].set_ylabel("Avg Power [MW]")
+    axes[2].set_title("Seasonal Pattern", fontsize=13)
+    axes[2].tick_params(axis='x', rotation=45)
+    axes[2].grid(True, axis='y', linestyle='--', alpha=0.4)
+    
+    plt.suptitle("Battery Operation at Different Time Scales", fontsize=15, y=1.02)
     plt.tight_layout()
     plt.show()
