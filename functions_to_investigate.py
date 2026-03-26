@@ -1035,3 +1035,205 @@ def plot_battery_timescales(n):
     plt.suptitle("Battery Operation at Different Time Scales", fontsize=15, y=1.02)
     plt.tight_layout()
     plt.show()
+
+    # ============================================================
+# STEP D: NETWORK / INTERCONNECTION PLOTTING FUNCTIONS
+# Append these to the bottom of functions_to_investigate.py
+# ============================================================
+
+# Colour map extended with new carriers
+COLORS_D = {
+    "wind_combined": "#235ebc",
+    "solar":         "#f39c12",
+    "CCGT":          "#95a5a6",
+    "battery":       "#8e44ad",
+    "hydro":         "#1abc9c",
+    "nuclear":       "#e74c3c",
+    "coal":          "#7f8c8d",
+    "import":        "#2ecc71",   # green = cheap imports
+    "export":        "#e67e22",   # orange = exports
+}
+
+
+# --- D1. NET EXPORT / IMPORT FOR A SINGLE BUS ---
+def plot_network_flows(n, bus="Denmark"):
+    """
+    Plots Denmark's net export (positive) and net import (negative)
+    over the year, plus a monthly bar summary.
+    """
+    # Find all lines connected to this bus
+    lines_from = n.lines[n.lines.bus0 == bus].index
+    lines_to   = n.lines[n.lines.bus1 == bus].index
+
+    # p0 is flow leaving bus0; positive = leaving bus0
+    net_export = pd.Series(0.0, index=n.snapshots)
+    for line in lines_from:
+        net_export += n.lines_t.p0[line]        # leaving DK
+    for line in lines_to:
+        net_export -= n.lines_t.p0[line]        # arriving at DK (p0 leaves bus0 = arriving here)
+
+    fig, axes = plt.subplots(2, 1, figsize=(14, 8))
+
+    # ── Top: time series (weekly average for readability) ──
+    net_export_weekly = net_export.resample("W").mean()
+    axes[0].fill_between(net_export_weekly.index,
+                         net_export_weekly.clip(lower=0),
+                         color=COLORS_D["export"], alpha=0.7, label="Net export")
+    axes[0].fill_between(net_export_weekly.index,
+                         net_export_weekly.clip(upper=0),
+                         color=COLORS_D["import"], alpha=0.7, label="Net import")
+    axes[0].axhline(0, color="black", lw=0.8)
+    axes[0].set_title(f"{bus} — Weekly Average Net Export/Import (2015)", fontsize=14)
+    axes[0].set_ylabel("Power [MW]")
+    axes[0].legend()
+    axes[0].grid(True, linestyle="--", alpha=0.4)
+
+    # ── Bottom: monthly bar chart (TWh) ──
+    monthly_twh = net_export.resample("M").sum() / 1e6
+    colors_bar = [COLORS_D["export"] if v >= 0 else COLORS_D["import"]
+                  for v in monthly_twh.values]
+    months = ["Jan","Feb","Mar","Apr","May","Jun",
+              "Jul","Aug","Sep","Oct","Nov","Dec"]
+    axes[1].bar(months, monthly_twh.values, color=colors_bar, alpha=0.85)
+    axes[1].axhline(0, color="black", lw=0.8)
+    axes[1].set_title(f"{bus} — Monthly Net Export (positive) / Import (negative) [TWh]", fontsize=14)
+    axes[1].set_ylabel("TWh")
+    axes[1].grid(True, axis="y", linestyle="--", alpha=0.4)
+
+    total_export = net_export.clip(lower=0).sum() / 1e6
+    total_import = net_export.clip(upper=0).sum() / 1e6
+    axes[1].set_xlabel(
+        f"Annual export: {total_export:.2f} TWh  |  Annual import: {abs(total_import):.2f} TWh",
+        fontsize=11
+    )
+
+    plt.tight_layout()
+    plt.show()
+
+
+# --- D2. GENERATION MIX FOR ONE BUS (with import shown) ---
+def plot_generation_mix_network(n, bus, start_date, end_date):
+    """
+    Stacked area chart of generation at a single bus, with net import
+    shown as a separate band. Demand line overlaid.
+    """
+    # Generators at this bus
+    bus_gens = n.generators[n.generators.bus == bus].index
+    p_gen = n.generators_t.p[bus_gens].loc[start_date:end_date]
+    p_gen.columns = n.generators.loc[bus_gens, "carrier"]
+
+    # Net import into this bus (positive = importing)
+    lines_from = n.lines[n.lines.bus0 == bus].index
+    lines_to   = n.lines[n.lines.bus1 == bus].index
+    net_import = pd.Series(0.0, index=n.snapshots)
+    for line in lines_from:
+        net_import -= n.lines_t.p0[line]
+    for line in lines_to:
+        net_import += n.lines_t.p0[line]
+    net_import = net_import.loc[start_date:end_date]
+
+    # Load for this bus
+    bus_loads = n.loads[n.loads.bus == bus].index
+    load = n.loads_t.p_set[bus_loads].sum(axis=1).loc[start_date:end_date]
+
+    # Build plot dataframe (only positive generation + positive imports stacked)
+    df = p_gen.copy()
+    df["import"] = net_import.clip(lower=0)
+
+    # Order columns
+    order = ["wind_combined", "solar", "CCGT", "hydro", "nuclear", "coal", "import"]
+    cols = [c for c in order if c in df.columns]
+    df = df[cols]
+
+    fig, ax = plt.subplots(figsize=(13, 6))
+    df.plot.area(ax=ax, stacked=True,
+                 color=[COLORS_D.get(c, "#888") for c in df.columns],
+                 alpha=0.85)
+
+    # Show exports as negative (below zero) if any
+    export = (-net_import).clip(lower=0)
+    if export.max() > 0:
+        ax.fill_between(export.index, -export, 0,
+                        color=COLORS_D["export"], alpha=0.7, label="export")
+
+    load.plot(ax=ax, color="black", linewidth=2, linestyle="--", label="Demand")
+    ax.axhline(0, color="black", lw=0.8)
+
+    ax.set_title(f"{bus} — Generation Mix ({start_date} to {end_date})", fontsize=14)
+    ax.set_ylabel("Power [MW]")
+    ax.legend(loc="upper left", bbox_to_anchor=(1, 1))
+    ax.grid(True, axis="y", linestyle="--", alpha=0.4)
+    plt.tight_layout()
+    plt.show()
+
+
+# --- D3. ANNUAL GENERATION MIX FOR ALL COUNTRIES (stacked bar) ---
+def plot_annual_mix_all_countries(n):
+    """
+    One stacked bar per country showing annual generation by technology [TWh].
+    """
+    countries = list(n.buses.index)
+    carriers_all = n.generators.carrier.unique()
+
+    # Build a country × carrier production table
+    data = {}
+    for country in countries:
+        bus_gens = n.generators[n.generators.bus == country].index
+        prod = n.generators_t.p[bus_gens].sum() / 1e6   # TWh
+        prod.index = n.generators.loc[bus_gens, "carrier"]
+        data[country] = prod
+
+    df = pd.DataFrame(data).fillna(0).T   # countries as rows, carriers as columns
+
+    # Order columns nicely
+    order = ["hydro", "nuclear", "wind_combined", "solar", "CCGT", "coal"]
+    cols = [c for c in order if c in df.columns] + \
+           [c for c in df.columns if c not in order]
+    df = df[cols]
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    df.plot.bar(ax=ax, stacked=True,
+                color=[COLORS_D.get(c, "#888") for c in df.columns],
+                alpha=0.9, edgecolor="white")
+
+    ax.set_title("Annual Generation by Country and Technology (2015)", fontsize=14)
+    ax.set_ylabel("Annual Generation [TWh]")
+    ax.set_xlabel("")
+    ax.tick_params(axis="x", rotation=0)
+    ax.legend(loc="upper left", bbox_to_anchor=(1, 0), title="Technology")
+    ax.grid(True, axis="y", linestyle="--", alpha=0.4)
+    plt.tight_layout()
+    plt.show()
+
+
+# --- D4. LINE FLOW DURATION CURVES ---
+def plot_line_duration_curves(n):
+    """
+    For each transmission line: plot the duration curve of |flow| / capacity.
+    Values near 1.0 mean the line is at its limit. Shows how congested each line is.
+    """
+    lines = n.lines.index
+    n_lines = len(lines)
+    fig, axes = plt.subplots(1, n_lines, figsize=(4 * n_lines, 5), sharey=True)
+    if n_lines == 1:
+        axes = [axes]
+
+    for ax, line in zip(axes, lines):
+        cap   = n.lines.loc[line, "p_nom"]
+        flow  = n.lines_t.p0[line].abs() / cap          # normalised 0–1
+        flow_sorted = flow.sort_values(ascending=False).values
+        hours = range(len(flow_sorted))
+
+        ax.fill_between(hours, flow_sorted, alpha=0.6,
+                        color=COLORS_D.get("wind_combined", "#235ebc"))
+        ax.axhline(1.0, color="red", linestyle="--", linewidth=1.2, label="Capacity limit")
+        ax.set_title(line.replace("line_", "").replace("_", " → "), fontsize=12)
+        ax.set_xlabel("Hours [h/year]")
+        ax.set_ylim(0, 1.1)
+        ax.grid(True, linestyle="--", alpha=0.4)
+        ax.legend(fontsize=8)
+
+    axes[0].set_ylabel("Flow / Capacity")
+    fig.suptitle("Line Flow Duration Curves (|flow| / nominal capacity)", fontsize=14, y=1.02)
+    plt.tight_layout()
+    plt.show()
