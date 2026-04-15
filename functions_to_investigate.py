@@ -1237,3 +1237,148 @@ def plot_line_duration_curves(n):
     fig.suptitle("Line Flow Duration Curves (|flow| / nominal capacity)", fontsize=14, y=1.02)
     plt.tight_layout()
     plt.show()
+
+
+    # ============================================================
+# STEP F: CO2 SENSITIVITY PLOTTING FUNCTIONS
+# Append these to the bottom of functions_to_investigate.py
+# ============================================================
+
+# Historical reference emissions (Danish electricity sector)
+DK_CO2_1990 = 23.5  # MtCO2, source: DEA Energy Statistics
+DK_CO2_2023 = 6.0   # MtCO2, source: DEA Energy Statistics 2023
+
+
+def _add_reference_lines(ax, baseline_mt, show_historical=True):
+    """Helper: add vertical reference lines for historical emissions."""
+    if show_historical:
+        # Only show historical lines if they fall within the x-axis range
+        xlims = ax.get_xlim()
+        if DK_CO2_1990 <= xlims[1] * 1.5:
+            ax.axvline(DK_CO2_1990, color="grey", linestyle=":", lw=1.2, alpha=0.7)
+            ax.text(DK_CO2_1990, ax.get_ylim()[1] * 0.95, " 1990\n (real)",
+                    fontsize=8, color="grey", ha="left", va="top")
+        if DK_CO2_2023 <= xlims[1] * 1.5:
+            ax.axvline(DK_CO2_2023, color="grey", linestyle=":", lw=1.2, alpha=0.7)
+            ax.text(DK_CO2_2023, ax.get_ylim()[1] * 0.85, " 2023\n (real)",
+                    fontsize=8, color="grey", ha="left", va="top")
+
+
+# --- F1. GENERATION MIX vs CO2 CONSTRAINT (stacked area) ---
+def plot_generation_vs_co2(df_f, baseline_mt):
+    """
+    Stacked area chart: annual generation [TWh] by technology
+    as a function of the CO2 allowance [MtCO2].
+    """
+    # Sort by CO2 limit (ascending = tighter constraint on the left)
+    df = df_f.sort_values("co2_actual_mt", ascending=True).copy()
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    x = df["co2_actual_mt"].values
+
+    ax.stackplot(x,
+                 df["wind_gen"].values,
+                 df["ccgt_gen"].values,
+                 df["solar_gen"].values,
+                 labels=["Wind", "CCGT", "Solar"],
+                 colors=[COLORS["wind_combined"], COLORS["CCGT"], COLORS["solar"]],
+                 alpha=0.85)
+
+    # Demand line
+    total_demand = df["wind_gen"].values + df["ccgt_gen"].values + df["solar_gen"].values
+    ax.plot(x, total_demand, color="black", linewidth=1.5, linestyle="--",
+            label="Total generation", alpha=0.5)
+
+    # Reference lines
+    _add_reference_lines(ax, baseline_mt, show_historical=True)
+
+    ax.set_xlabel("Actual CO₂ Emissions [MtCO₂/year]", fontsize=12)
+    ax.set_ylabel("Annual Generation [TWh]", fontsize=12)
+    ax.set_title("Generation Mix vs CO₂ Emissions", fontsize=15)
+    ax.legend(loc="upper left", bbox_to_anchor=(1, 1))
+    ax.grid(True, axis="y", linestyle="--", alpha=0.4)
+    ax.set_xlim(left=0)
+    ax.set_ylim(bottom=0)
+
+    plt.tight_layout()
+    plt.show()
+
+
+# --- F2. CAPACITY MIX vs CO2 CONSTRAINT (stacked area) ---
+def plot_capacity_vs_co2(df_f, baseline_mt):
+    """
+    Stacked area chart: optimal installed capacity [GW] by technology
+    as a function of the CO2 allowance [MtCO2].
+    """
+    df = df_f.sort_values("co2_actual_mt", ascending=True).copy()
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    x = df["co2_actual_mt"].values
+
+    ax.stackplot(x,
+                 df["wind_cap"].values,
+                 df["ccgt_cap"].values,
+                 df["solar_cap"].values,
+                 df["battery_cap"].values,
+                 labels=["Wind", "CCGT", "Solar", "Battery"],
+                 colors=[COLORS["wind_combined"], COLORS["CCGT"],
+                         COLORS["solar"], COLORS["battery"]],
+                 alpha=0.85)
+
+    _add_reference_lines(ax, baseline_mt, show_historical=True)
+
+    ax.set_xlabel("Actual CO₂ Emissions [MtCO₂/year]", fontsize=12)
+    ax.set_ylabel("Installed Capacity [GW]", fontsize=12)
+    ax.set_title("Optimal Capacity Mix vs CO₂ Emissions", fontsize=15)
+    ax.legend(loc="upper left", bbox_to_anchor=(1, 1))
+    ax.grid(True, axis="y", linestyle="--", alpha=0.4)
+    ax.set_xlim(left=0)
+    ax.set_ylim(bottom=0)
+
+    plt.tight_layout()
+    plt.show()
+
+
+# --- F3. SYSTEM COST + CO2 SHADOW PRICE vs CO2 CONSTRAINT ---
+def plot_cost_and_price_vs_co2(df_f, baseline_mt):
+    """
+    Dual-axis plot:
+      Left axis: total system cost [B$/y] vs CO2 allowance
+      Right axis: CO2 shadow price [$/tCO2] vs CO2 allowance
+    """
+    df = df_f.sort_values("co2_actual_mt", ascending=True).copy()
+
+    fig, ax1 = plt.subplots(figsize=(12, 6))
+    ax2 = ax1.twinx()
+
+    x = df["co2_actual_mt"].values
+
+    # System cost (left axis)
+    line1 = ax1.plot(x, df["system_cost"].values, color="#2c3e50", linewidth=2.5,
+                     marker="o", markersize=5, label="System cost", zorder=3)
+    ax1.set_ylabel("System Cost [B$/year]", fontsize=12, color="#2c3e50")
+    ax1.tick_params(axis="y", labelcolor="#2c3e50")
+    ax1.set_ylim(bottom=0)
+
+    # CO2 shadow price (right axis)
+    line2 = ax2.plot(x, df["co2_shadow_price"].values, color="#e74c3c", linewidth=2,
+                     marker="s", markersize=4, linestyle="--", label="CO₂ shadow price", zorder=2)
+    ax2.set_ylabel("CO₂ Shadow Price [$/tCO₂]", fontsize=12, color="#e74c3c")
+    ax2.tick_params(axis="y", labelcolor="#e74c3c")
+    ax2.set_ylim(bottom=0)
+
+    ax1.set_xlabel("Actual CO₂ Emissions [MtCO₂/year]", fontsize=12)
+    ax1.set_title("System Cost and CO₂ Price vs Emissions", fontsize=15)
+
+    # Combined legend
+    lines = line1 + line2
+    labels = [l.get_label() for l in lines]
+    ax1.legend(lines, labels, loc="upper center", fontsize=11)
+
+    ax1.grid(True, linestyle="--", alpha=0.4)
+    ax1.set_xlim(left=0)
+
+    plt.tight_layout()
+    plt.show()
