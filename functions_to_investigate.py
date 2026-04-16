@@ -1245,8 +1245,13 @@ def plot_line_duration_curves(n):
 # ============================================================
 
 # Historical reference emissions (Danish electricity sector)
-DK_CO2_1990 = 23.5  # MtCO2, source: DEA Energy Statistics
-DK_CO2_2023 = 6.0   # MtCO2, source: DEA Energy Statistics 2023
+# Historical reference emissions (Danish electricity sector, source: DEA)
+DK_CO2_1990 = 23.5   # MtCO2
+DK_CO2_2023 = 6.0    # MtCO2
+
+# Policy reference prices (for the shadow-price plot)
+EU_ETS_PRICE  = 80   # $/tCO2, EU Emissions Trading System ~2024 level
+DK_CO2_TAX_30 = 160  # $/tCO2, Danish corporate carbon tax target for 2030
 
 
 def _add_reference_lines(ax, baseline_mt, show_historical=True):
@@ -1285,14 +1290,6 @@ def plot_generation_vs_co2(df_f, baseline_mt):
                  colors=[COLORS["wind_combined"], COLORS["CCGT"], COLORS["solar"]],
                  alpha=0.85)
 
-    # Demand line
-    total_demand = df["wind_gen"].values + df["ccgt_gen"].values + df["solar_gen"].values
-    ax.plot(x, total_demand, color="black", linewidth=1.5, linestyle="--",
-            label="Total generation", alpha=0.5)
-
-    # Reference lines
-    _add_reference_lines(ax, baseline_mt, show_historical=True)
-
     ax.set_xlabel("Actual CO₂ Emissions [MtCO₂/year]", fontsize=12)
     ax.set_ylabel("Annual Generation [TWh]", fontsize=12)
     ax.set_title("Generation Mix vs CO₂ Emissions", fontsize=15)
@@ -1300,6 +1297,11 @@ def plot_generation_vs_co2(df_f, baseline_mt):
     ax.grid(True, axis="y", linestyle="--", alpha=0.4)
     ax.set_xlim(left=0)
     ax.set_ylim(bottom=0)
+
+    # Baseline (unconstrained) reference line
+    ax.axvline(baseline_mt, color="black", linestyle="--", lw=1.2, alpha=0.7)
+    ax.text(baseline_mt, ax.get_ylim()[1], "unconstrained",
+            fontsize=9, color="black", ha="center", va="bottom")
 
     plt.tight_layout()
     plt.show()
@@ -1345,10 +1347,14 @@ def plot_capacity_vs_co2(df_f, baseline_mt):
 def plot_cost_and_price_vs_co2(df_f, baseline_mt):
     """
     Dual-axis plot:
-      Left axis: total system cost [B$/y] vs CO2 allowance
-      Right axis: CO2 shadow price [$/tCO2] vs CO2 allowance
+      Left axis : total system cost [B$/y]
+      Right axis: CO2 shadow price [$/tCO2]
+    Net-zero point excluded for readability (shadow price ~36,000 $/tCO2).
+    X-axis inverted: unconstrained (left) -> tight cap (right).
+    Policy references shown: EU ETS and Danish 2030 carbon tax.
     """
-    df = df_f.sort_values("co2_actual_mt", ascending=True).copy()
+    df = df_f[df_f["co2_actual_mt"] > 0.01].copy()
+    df = df.sort_values("co2_actual_mt", ascending=False).reset_index(drop=True)
 
     fig, ax1 = plt.subplots(figsize=(12, 6))
     ax2 = ax1.twinx()
@@ -1356,29 +1362,47 @@ def plot_cost_and_price_vs_co2(df_f, baseline_mt):
     x = df["co2_actual_mt"].values
 
     # System cost (left axis)
-    line1 = ax1.plot(x, df["system_cost"].values, color="#2c3e50", linewidth=2.5,
-                     marker="o", markersize=5, label="System cost", zorder=3)
+    l1 = ax1.plot(x, df["system_cost"].values, color="#2c3e50", linewidth=2.5,
+                  marker="o", markersize=5, label="System cost", zorder=3)
     ax1.set_ylabel("System Cost [B$/year]", fontsize=12, color="#2c3e50")
     ax1.tick_params(axis="y", labelcolor="#2c3e50")
     ax1.set_ylim(bottom=0)
 
-    # CO2 shadow price (right axis)
-    line2 = ax2.plot(x, df["co2_shadow_price"].values, color="#e74c3c", linewidth=2,
-                     marker="s", markersize=4, linestyle="--", label="CO₂ shadow price", zorder=2)
-    ax2.set_ylabel("CO₂ Shadow Price [$/tCO₂]", fontsize=12, color="#e74c3c")
-    ax2.tick_params(axis="y", labelcolor="#e74c3c")
+    # CO2 shadow price (right axis) — keep axis labels black
+    l2 = ax2.plot(x, df["co2_shadow_price"].values, color="#e74c3c", linewidth=2,
+                  marker="s", markersize=4, linestyle="--",
+                  label="CO₂ shadow price", zorder=2)
+    ax2.set_ylabel("CO₂ Shadow Price [$/tCO₂]", fontsize=12, labelpad=55)
     ax2.set_ylim(bottom=0)
 
-    ax1.set_xlabel("Actual CO₂ Emissions [MtCO₂/year]", fontsize=12)
+    # Policy reference lines (labels placed outside the plot, right of ax2)
+    ax2.axhline(EU_ETS_PRICE, color="#e74c3c", linestyle=":", lw=1, alpha=0.6)
+    ax2.annotate(f"EU ETS\n(~{EU_ETS_PRICE} $/tCO₂)",
+                 xy=(1.0, EU_ETS_PRICE), xycoords=("axes fraction", "data"),
+                 xytext=(35, 20), textcoords="offset points",
+                 fontsize=8, color="#e74c3c", va="center", ha="left", alpha=0.9)
+    ax2.axhline(DK_CO2_TAX_30, color="#e74c3c", linestyle=":", lw=1, alpha=0.6)
+    ax2.annotate(f"DK 2030\n(~{DK_CO2_TAX_30} $/tCO₂)",
+                 xy=(1.0, DK_CO2_TAX_30), xycoords=("axes fraction", "data"),
+                 xytext=(35, -20), textcoords="offset points",
+                 fontsize=8, color="#e74c3c", va="center", ha="left", alpha=0.9)
+
+    # Baseline (unconstrained) reference line
+    ax1.axvline(baseline_mt, color="black", linestyle="--", lw=1.2, alpha=0.7)
+    ax1.text(baseline_mt, ax1.get_ylim()[1] * 0.97, "  unconstrained",
+             fontsize=9, color="black", ha="left", va="top")
+
+    ax1.set_xlabel("CO₂ Emissions [MtCO₂/year]", fontsize=12)
     ax1.set_title("System Cost and CO₂ Price vs Emissions", fontsize=15)
 
     # Combined legend
-    lines = line1 + line2
-    labels = [l.get_label() for l in lines]
-    ax1.legend(lines, labels, loc="upper center", fontsize=11)
+    lines = l1 + l2
+    ax1.legend(lines, [l.get_label() for l in lines], loc="upper center", fontsize=11)
 
     ax1.grid(True, linestyle="--", alpha=0.4)
-    ax1.set_xlim(left=0)
 
     plt.tight_layout()
+    # Reserve extra space on the right for the external labels
+    plt.subplots_adjust(right=0.86)
+    ax1.set_xlim(df["co2_actual_mt"].max() * 1.05, 0)
     plt.show()
