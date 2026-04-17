@@ -1511,35 +1511,41 @@ def plot_h2_infrastructure(net_g):
 # --- G3. H2 PIPELINE UTILIZATION (duration curves) ---
 def plot_h2_pipeline_utilization(net_g):
     """
-    Duration curves for H2 pipeline flows, similar to the
-    HVAC line duration curves in Step D.
+    Duration curves for H2 pipeline flows.
+    Forward and backward links are combined per connection.
     """
-    h2_pipe_names = [n for n in net_g.links.index if n.startswith("H2_")]
-    n_pipes = len(h2_pipe_names)
- 
-    fig, axes = plt.subplots(1, n_pipes, figsize=(4 * n_pipes, 5), sharey=True)
-    if n_pipes == 1:
-        axes = [axes]
- 
-    for ax, name in zip(axes, h2_pipe_names):
-        cap = net_g.links.loc[name, "p_nom"]
-        flow = net_g.links_t.p0[name]
-        flow_norm = flow.abs() / cap if cap > 0 else flow.abs()
+    connections = [
+        ("DK", "DE"), ("DK", "SE"), ("DK", "NO"),
+        ("SE", "NO"), ("DE", "SE"),
+    ]
+
+    fig, axes = plt.subplots(1, len(connections),
+                             figsize=(4 * len(connections), 5), sharey=True)
+
+    for ax, (c0, c1) in zip(axes, connections):
+        fwd_name = f"H2_{c0}_{c1}"
+        bwd_name = f"H2_{c1}_{c0}"
+        cap = net_g.links.loc[fwd_name, "p_nom"]
+
+        # Net flow: forward minus backward
+        fwd = net_g.links_t.p0[fwd_name].clip(lower=0)
+        bwd = net_g.links_t.p0[bwd_name].clip(lower=0)
+        net_flow = (fwd + bwd)  # total absolute flow in both directions
+
+        flow_norm = net_flow / cap if cap > 0 else net_flow
         flow_sorted = flow_norm.sort_values(ascending=False).values
         hours = range(len(flow_sorted))
- 
+
         ax.fill_between(hours, flow_sorted, alpha=0.6, color="#2ecc71")
         ax.axhline(1.0, color="red", linestyle="--", linewidth=1.2, label="Capacity limit")
-        label = name.replace("H2_", "").replace("_", " → ")
-        ax.set_title(f"H₂: {label}", fontsize=11)
+        ax.set_title(f"H₂: {c0} ↔ {c1}", fontsize=11)
         ax.set_xlabel("Hours [h/year]")
         ax.set_ylim(0, 1.1)
         ax.grid(True, linestyle="--", alpha=0.4)
         ax.legend(fontsize=8)
- 
+
     axes[0].set_ylabel("Flow / Capacity")
     fig.suptitle("H₂ Pipeline Flow Duration Curves", fontsize=14, y=1.02)
- 
     plt.tight_layout()
     plt.show()
  
