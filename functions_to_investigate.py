@@ -1089,7 +1089,7 @@ def plot_network_flows(n, bus="Denmark"):
     axes[0].grid(True, linestyle="--", alpha=0.4)
 
     # ── Bottom: monthly bar chart (TWh) ──
-    monthly_twh = net_export.resample("M").sum() / 1e6
+    monthly_twh = net_export.resample("ME").sum() / 1e6
     colors_bar = [COLORS_D["export"] if v >= 0 else COLORS_D["import"]
                   for v in monthly_twh.values]
     months = ["Jan","Feb","Mar","Apr","May","Jun",
