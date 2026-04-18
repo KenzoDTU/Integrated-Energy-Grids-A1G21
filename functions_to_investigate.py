@@ -1239,7 +1239,7 @@ def plot_line_duration_curves(n):
     plt.show()
 
 
-    # ============================================================
+# ============================================================
 # STEP F: CO2 SENSITIVITY PLOTTING FUNCTIONS
 # Append these to the bottom of functions_to_investigate.py
 # ============================================================
@@ -1406,3 +1406,146 @@ def plot_cost_and_price_vs_co2(df_f, baseline_mt):
     plt.subplots_adjust(right=0.86)
     ax1.set_xlim(df["co2_actual_mt"].max() * 1.05, 0)
     plt.show()
+
+
+
+# ============================================================
+# STEP G: HYDROGEN NETWORK PLOTTING FUNCTIONS
+# Append these to the bottom of functions_to_investigate.py
+# ============================================================
+
+
+# --- G1. ELECTRICITY vs H2 ENERGY TRANSPORT (bar chart) ---
+def plot_energy_transport_comparison(net_g):
+    """
+    Bar chart comparing total annual energy transported via
+    the electricity network (HVAC lines) vs H2 pipelines.
+    """
+    # Electricity: sum of |flow| on HVAC lines
+    el_twh = net_g.lines_t.p0.abs().sum() / 1e6  # per line
+ 
+    # H2 pipelines: Links starting with "H2_"
+    h2_pipe_names = [n for n in net_g.links.index if n.startswith("H2_")]
+    h2_twh = net_g.links_t.p0[h2_pipe_names].abs().sum() / 1e6  # per pipeline
+ 
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+ 
+    # --- Left: total comparison ---
+    totals = [el_twh.sum(), h2_twh.sum()]
+    bars = ax1.bar(["Electricity\n(HVAC lines)", "Hydrogen\n(H₂ pipelines)"],
+                   totals, color=[COLORS_D["wind_combined"], "#2ecc71"],
+                   alpha=0.85, edgecolor="black", linewidth=0.5, width=0.5)
+    for bar, val in zip(bars, totals):
+        ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height(),
+                 f"{val:.1f} TWh", ha="center", va="bottom",
+                 fontweight="bold", fontsize=11)
+    ax1.set_ylabel("Annual Energy Transported [TWh]", fontsize=12)
+    ax1.set_title("Total Energy Transport: Electricity vs H₂", fontsize=14)
+    ax1.grid(True, axis="y", linestyle="--", alpha=0.4)
+    ax1.set_ylim(0, max(totals) * 1.15)
+ 
+    # --- Right: per-link breakdown ---
+    el_labels = [l.replace("line_", "").replace("_", "→") for l in el_twh.index]
+    h2_labels = [l.replace("H2_", "").replace("_", "→") for l in h2_twh.index]
+ 
+    all_labels = el_labels + h2_labels
+    all_values = list(el_twh.values) + list(h2_twh.values)
+    all_colors = [COLORS_D["wind_combined"]] * len(el_labels) + ["#2ecc71"] * len(h2_labels)
+ 
+    bars2 = ax2.barh(all_labels, all_values, color=all_colors, alpha=0.85,
+                     edgecolor="black", linewidth=0.5)
+    ax2.set_xlabel("Annual Energy [TWh]", fontsize=12)
+    ax2.set_title("Energy Transport by Link", fontsize=14)
+    ax2.grid(True, axis="x", linestyle="--", alpha=0.4)
+ 
+    # Separator line between electricity and H2
+    ax2.axhline(len(el_labels) - 0.5, color="black", linestyle="-", lw=0.8, alpha=0.5)
+ 
+    plt.tight_layout()
+    plt.show()
+ 
+ 
+# --- G2. ELECTROLYSER AND FUEL CELL CAPACITIES (grouped bar) ---
+def plot_h2_infrastructure(net_g):
+    """
+    Grouped bar chart showing electrolyser and fuel cell optimal
+    capacities per country.
+    """
+    countries = ["Denmark", "Germany", "Sweden", "Norway"]
+ 
+    elec_cap = [net_g.links.loc[f"{c} electrolyser", "p_nom_opt"] / 1e3
+                for c in countries]
+    fc_cap = [net_g.links.loc[f"{c} fuel cell", "p_nom_opt"] / 1e3
+              for c in countries]
+ 
+    x = np.arange(len(countries))
+    width = 0.35
+ 
+    fig, ax = plt.subplots(figsize=(10, 6))
+    bars1 = ax.bar(x - width/2, elec_cap, width, label="Electrolyser",
+                   color="#2ecc71", alpha=0.85, edgecolor="black", linewidth=0.5)
+    bars2 = ax.bar(x + width/2, fc_cap, width, label="Fuel cell",
+                   color="#1abc9c", alpha=0.85, edgecolor="black", linewidth=0.5)
+ 
+    for bar, val in zip(bars1, elec_cap):
+        if val > 0.01:
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height(),
+                    f"{val:.2f}", ha="center", va="bottom", fontsize=9)
+    for bar, val in zip(bars2, fc_cap):
+        if val > 0.01:
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height(),
+                    f"{val:.2f}", ha="center", va="bottom", fontsize=9)
+ 
+    ax.set_ylabel("Installed Capacity [GW]", fontsize=12)
+    ax.set_title("H₂ Infrastructure: Electrolyser and Fuel Cell Capacities", fontsize=14)
+    ax.set_xticks(x)
+    ax.set_xticklabels(countries)
+    ax.legend()
+    ax.grid(True, axis="y", linestyle="--", alpha=0.4)
+    ax.set_ylim(0, max(max(elec_cap), max(fc_cap)) * 1.2)
+ 
+    plt.tight_layout()
+    plt.show()
+ 
+ 
+# --- G3. H2 PIPELINE UTILIZATION (duration curves) ---
+def plot_h2_pipeline_utilization(net_g):
+    """
+    Duration curves for H2 pipeline flows.
+    Forward and backward links are combined per connection.
+    """
+    connections = [
+        ("DK", "DE"), ("DK", "SE"), ("DK", "NO"),
+        ("SE", "NO"), ("DE", "SE"),
+    ]
+
+    fig, axes = plt.subplots(1, len(connections),
+                             figsize=(4 * len(connections), 5), sharey=True)
+
+    for ax, (c0, c1) in zip(axes, connections):
+        fwd_name = f"H2_{c0}_{c1}"
+        bwd_name = f"H2_{c1}_{c0}"
+        cap = net_g.links.loc[fwd_name, "p_nom"]
+
+        # Net flow: forward minus backward
+        fwd = net_g.links_t.p0[fwd_name].clip(lower=0)
+        bwd = net_g.links_t.p0[bwd_name].clip(lower=0)
+        net_flow = (fwd + bwd)  # total absolute flow in both directions
+
+        flow_norm = net_flow / cap if cap > 0 else net_flow
+        flow_sorted = flow_norm.sort_values(ascending=False).values
+        hours = range(len(flow_sorted))
+
+        ax.fill_between(hours, flow_sorted, alpha=0.6, color="#2ecc71")
+        ax.axhline(1.0, color="red", linestyle="--", linewidth=1.2, label="Capacity limit")
+        ax.set_title(f"H₂: {c0} ↔ {c1}", fontsize=11)
+        ax.set_xlabel("Hours [h/year]")
+        ax.set_ylim(0, 1.1)
+        ax.grid(True, linestyle="--", alpha=0.4)
+        ax.legend(fontsize=8)
+
+    axes[0].set_ylabel("Flow / Capacity")
+    fig.suptitle("H₂ Pipeline Flow Duration Curves", fontsize=14, y=1.02)
+    plt.tight_layout()
+    plt.show()
+ 
