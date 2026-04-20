@@ -1237,3 +1237,315 @@ def plot_line_duration_curves(n):
     fig.suptitle("Line Flow Duration Curves (|flow| / nominal capacity)", fontsize=14, y=1.02)
     plt.tight_layout()
     plt.show()
+
+
+# ============================================================
+# STEP F: CO2 SENSITIVITY PLOTTING FUNCTIONS
+# Append these to the bottom of functions_to_investigate.py
+# ============================================================
+
+# Historical reference emissions (Danish electricity sector)
+# Historical reference emissions (Danish electricity sector, source: DEA)
+DK_CO2_1990 = 23.5   # MtCO2
+DK_CO2_2023 = 6.0    # MtCO2
+
+# Policy reference prices (for the shadow-price plot)
+EU_ETS_PRICE  = 80   # $/tCO2, EU Emissions Trading System ~2024 level
+DK_CO2_TAX_30 = 160  # $/tCO2, Danish corporate carbon tax target for 2030
+
+
+def _add_reference_lines(ax, baseline_mt, show_historical=True):
+    """Helper: add vertical reference lines for historical emissions."""
+    if show_historical:
+        # Only show historical lines if they fall within the x-axis range
+        xlims = ax.get_xlim()
+        if DK_CO2_1990 <= xlims[1] * 1.5:
+            ax.axvline(DK_CO2_1990, color="grey", linestyle=":", lw=1.2, alpha=0.7)
+            ax.text(DK_CO2_1990, ax.get_ylim()[1] * 0.95, " 1990\n (real)",
+                    fontsize=8, color="grey", ha="left", va="top")
+        if DK_CO2_2023 <= xlims[1] * 1.5:
+            ax.axvline(DK_CO2_2023, color="grey", linestyle=":", lw=1.2, alpha=0.7)
+            ax.text(DK_CO2_2023, ax.get_ylim()[1] * 0.85, " 2023\n (real)",
+                    fontsize=8, color="grey", ha="left", va="top")
+
+
+# --- F1. GENERATION MIX vs CO2 CONSTRAINT (stacked area) ---
+def plot_generation_vs_co2(df_f, baseline_mt):
+    """
+    Stacked area chart: annual generation [TWh] by technology
+    as a function of the CO2 allowance [MtCO2].
+    """
+    # Sort by CO2 limit (ascending = tighter constraint on the left)
+    df = df_f.sort_values("co2_actual_mt", ascending=True).copy()
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    x = df["co2_actual_mt"].values
+
+    ax.stackplot(x,
+                 df["wind_gen"].values,
+                 df["ccgt_gen"].values,
+                 df["solar_gen"].values,
+                 labels=["Wind", "CCGT", "Solar"],
+                 colors=[COLORS["wind_combined"], COLORS["CCGT"], COLORS["solar"]],
+                 alpha=0.85)
+
+    ax.set_xlabel("Actual CO₂ Emissions [MtCO₂/year]", fontsize=12)
+    ax.set_ylabel("Annual Generation [TWh]", fontsize=12)
+    ax.set_title("Generation Mix vs CO₂ Emissions", fontsize=15)
+    ax.legend(loc="upper left", bbox_to_anchor=(1, 1))
+    ax.grid(True, axis="y", linestyle="--", alpha=0.4)
+    ax.set_xlim(left=0)
+    ax.set_ylim(bottom=0)
+
+    # Baseline (unconstrained) reference line
+    ax.axvline(baseline_mt, color="black", linestyle="--", lw=1.2, alpha=0.7)
+    ax.text(baseline_mt, ax.get_ylim()[1], "unconstrained",
+            fontsize=9, color="black", ha="center", va="bottom")
+
+    plt.tight_layout()
+    plt.show()
+
+
+# --- F2. CAPACITY MIX vs CO2 CONSTRAINT (stacked area) ---
+def plot_capacity_vs_co2(df_f, baseline_mt):
+    """
+    Stacked area chart: optimal installed capacity [GW] by technology
+    as a function of the CO2 allowance [MtCO2].
+    """
+    df = df_f.sort_values("co2_actual_mt", ascending=True).copy()
+
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    x = df["co2_actual_mt"].values
+
+    ax.stackplot(x,
+                 df["wind_cap"].values,
+                 df["ccgt_cap"].values,
+                 df["solar_cap"].values,
+                 df["battery_cap"].values,
+                 labels=["Wind", "CCGT", "Solar", "Battery"],
+                 colors=[COLORS["wind_combined"], COLORS["CCGT"],
+                         COLORS["solar"], COLORS["battery"]],
+                 alpha=0.85)
+
+    _add_reference_lines(ax, baseline_mt, show_historical=True)
+
+    ax.set_xlabel("Actual CO₂ Emissions [MtCO₂/year]", fontsize=12)
+    ax.set_ylabel("Installed Capacity [GW]", fontsize=12)
+    ax.set_title("Optimal Capacity Mix vs CO₂ Emissions", fontsize=15)
+    ax.legend(loc="upper left", bbox_to_anchor=(1, 1))
+    ax.grid(True, axis="y", linestyle="--", alpha=0.4)
+    ax.set_xlim(left=0)
+    ax.set_ylim(bottom=0)
+
+    plt.tight_layout()
+    plt.show()
+
+
+# --- F3. SYSTEM COST + CO2 SHADOW PRICE vs CO2 CONSTRAINT ---
+def plot_cost_and_price_vs_co2(df_f, baseline_mt):
+    """
+    Dual-axis plot:
+      Left axis : total system cost [B$/y]
+      Right axis: CO2 shadow price [$/tCO2]
+    Net-zero point excluded for readability (shadow price ~36,000 $/tCO2).
+    X-axis inverted: unconstrained (left) -> tight cap (right).
+    Policy references shown: EU ETS and Danish 2030 carbon tax.
+    """
+    df = df_f[df_f["co2_actual_mt"] > 0.01].copy()
+    df = df.sort_values("co2_actual_mt", ascending=False).reset_index(drop=True)
+
+    fig, ax1 = plt.subplots(figsize=(12, 6))
+    ax2 = ax1.twinx()
+
+    x = df["co2_actual_mt"].values
+
+    # System cost (left axis)
+    l1 = ax1.plot(x, df["system_cost"].values, color="#2c3e50", linewidth=2.5,
+                  marker="o", markersize=5, label="System cost", zorder=3)
+    ax1.set_ylabel("System Cost [B$/year]", fontsize=12, color="#2c3e50")
+    ax1.tick_params(axis="y", labelcolor="#2c3e50")
+    ax1.set_ylim(bottom=0)
+
+    # CO2 shadow price (right axis) — keep axis labels black
+    l2 = ax2.plot(x, df["co2_shadow_price"].values, color="#e74c3c", linewidth=2,
+                  marker="s", markersize=4, linestyle="--",
+                  label="CO₂ shadow price", zorder=2)
+    ax2.set_ylabel("CO₂ Shadow Price [$/tCO₂]", fontsize=12, labelpad=55)
+    ax2.set_ylim(bottom=0)
+
+    # Policy reference lines (labels placed outside the plot, right of ax2)
+    ax2.axhline(EU_ETS_PRICE, color="#e74c3c", linestyle=":", lw=1, alpha=0.6)
+    ax2.annotate(f"EU ETS\n(~{EU_ETS_PRICE} $/tCO₂)",
+                 xy=(1.0, EU_ETS_PRICE), xycoords=("axes fraction", "data"),
+                 xytext=(35, 20), textcoords="offset points",
+                 fontsize=8, color="#e74c3c", va="center", ha="left", alpha=0.9)
+    ax2.axhline(DK_CO2_TAX_30, color="#e74c3c", linestyle=":", lw=1, alpha=0.6)
+    ax2.annotate(f"DK 2030\n(~{DK_CO2_TAX_30} $/tCO₂)",
+                 xy=(1.0, DK_CO2_TAX_30), xycoords=("axes fraction", "data"),
+                 xytext=(35, -20), textcoords="offset points",
+                 fontsize=8, color="#e74c3c", va="center", ha="left", alpha=0.9)
+
+    # Baseline (unconstrained) reference line
+    ax1.axvline(baseline_mt, color="black", linestyle="--", lw=1.2, alpha=0.7)
+    ax1.text(baseline_mt, ax1.get_ylim()[1] * 0.97, "  unconstrained",
+             fontsize=9, color="black", ha="left", va="top")
+
+    ax1.set_xlabel("CO₂ Emissions [MtCO₂/year]", fontsize=12)
+    ax1.set_title("System Cost and CO₂ Price vs Emissions", fontsize=15)
+
+    # Combined legend
+    lines = l1 + l2
+    ax1.legend(lines, [l.get_label() for l in lines], loc="upper center", fontsize=11)
+
+    ax1.grid(True, linestyle="--", alpha=0.4)
+
+    plt.tight_layout()
+    # Reserve extra space on the right for the external labels
+    plt.subplots_adjust(right=0.86)
+    ax1.set_xlim(df["co2_actual_mt"].max() * 1.05, 0)
+    plt.show()
+
+
+
+# ============================================================
+# STEP G: HYDROGEN NETWORK PLOTTING FUNCTIONS
+# Append these to the bottom of functions_to_investigate.py
+# ============================================================
+
+
+# --- G1. ELECTRICITY vs H2 ENERGY TRANSPORT (bar chart) ---
+def plot_energy_transport_comparison(net_g):
+    """
+    Bar chart comparing total annual energy transported via
+    the electricity network (HVAC lines) vs H2 pipelines.
+    """
+    # Electricity: sum of |flow| on HVAC lines
+    el_twh = net_g.lines_t.p0.abs().sum() / 1e6  # per line
+ 
+    # H2 pipelines: Links starting with "H2_"
+    h2_pipe_names = [n for n in net_g.links.index if n.startswith("H2_")]
+    h2_twh = net_g.links_t.p0[h2_pipe_names].abs().sum() / 1e6  # per pipeline
+ 
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+ 
+    # --- Left: total comparison ---
+    totals = [el_twh.sum(), h2_twh.sum()]
+    bars = ax1.bar(["Electricity\n(HVAC lines)", "Hydrogen\n(H₂ pipelines)"],
+                   totals, color=[COLORS_D["wind_combined"], "#2ecc71"],
+                   alpha=0.85, edgecolor="black", linewidth=0.5, width=0.5)
+    for bar, val in zip(bars, totals):
+        ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height(),
+                 f"{val:.1f} TWh", ha="center", va="bottom",
+                 fontweight="bold", fontsize=11)
+    ax1.set_ylabel("Annual Energy Transported [TWh]", fontsize=12)
+    ax1.set_title("Total Energy Transport: Electricity vs H₂", fontsize=14)
+    ax1.grid(True, axis="y", linestyle="--", alpha=0.4)
+    ax1.set_ylim(0, max(totals) * 1.15)
+ 
+    # --- Right: per-link breakdown ---
+    el_labels = [l.replace("line_", "").replace("_", "→") for l in el_twh.index]
+    h2_labels = [l.replace("H2_", "").replace("_", "→") for l in h2_twh.index]
+ 
+    all_labels = el_labels + h2_labels
+    all_values = list(el_twh.values) + list(h2_twh.values)
+    all_colors = [COLORS_D["wind_combined"]] * len(el_labels) + ["#2ecc71"] * len(h2_labels)
+ 
+    bars2 = ax2.barh(all_labels, all_values, color=all_colors, alpha=0.85,
+                     edgecolor="black", linewidth=0.5)
+    ax2.set_xlabel("Annual Energy [TWh]", fontsize=12)
+    ax2.set_title("Energy Transport by Link", fontsize=14)
+    ax2.grid(True, axis="x", linestyle="--", alpha=0.4)
+ 
+    # Separator line between electricity and H2
+    ax2.axhline(len(el_labels) - 0.5, color="black", linestyle="-", lw=0.8, alpha=0.5)
+ 
+    plt.tight_layout()
+    plt.show()
+ 
+ 
+# --- G2. ELECTROLYSER AND FUEL CELL CAPACITIES (grouped bar) ---
+def plot_h2_infrastructure(net_g):
+    """
+    Grouped bar chart showing electrolyser and fuel cell optimal
+    capacities per country.
+    """
+    countries = ["Denmark", "Germany", "Sweden", "Norway"]
+ 
+    elec_cap = [net_g.links.loc[f"{c} electrolyser", "p_nom_opt"] / 1e3
+                for c in countries]
+    fc_cap = [net_g.links.loc[f"{c} fuel cell", "p_nom_opt"] / 1e3
+              for c in countries]
+ 
+    x = np.arange(len(countries))
+    width = 0.35
+ 
+    fig, ax = plt.subplots(figsize=(10, 6))
+    bars1 = ax.bar(x - width/2, elec_cap, width, label="Electrolyser",
+                   color="#2ecc71", alpha=0.85, edgecolor="black", linewidth=0.5)
+    bars2 = ax.bar(x + width/2, fc_cap, width, label="Fuel cell",
+                   color="#1abc9c", alpha=0.85, edgecolor="black", linewidth=0.5)
+ 
+    for bar, val in zip(bars1, elec_cap):
+        if val > 0.01:
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height(),
+                    f"{val:.2f}", ha="center", va="bottom", fontsize=9)
+    for bar, val in zip(bars2, fc_cap):
+        if val > 0.01:
+            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height(),
+                    f"{val:.2f}", ha="center", va="bottom", fontsize=9)
+ 
+    ax.set_ylabel("Installed Capacity [GW]", fontsize=12)
+    ax.set_title("H₂ Infrastructure: Electrolyser and Fuel Cell Capacities", fontsize=14)
+    ax.set_xticks(x)
+    ax.set_xticklabels(countries)
+    ax.legend()
+    ax.grid(True, axis="y", linestyle="--", alpha=0.4)
+    ax.set_ylim(0, max(max(elec_cap), max(fc_cap)) * 1.2)
+ 
+    plt.tight_layout()
+    plt.show()
+ 
+ 
+# --- G3. H2 PIPELINE UTILIZATION (duration curves) ---
+def plot_h2_pipeline_utilization(net_g):
+    """
+    Duration curves for H2 pipeline flows.
+    Forward and backward links are combined per connection.
+    """
+    connections = [
+        ("DK", "DE"), ("DK", "SE"), ("DK", "NO"),
+        ("SE", "NO"), ("DE", "SE"),
+    ]
+
+    fig, axes = plt.subplots(1, len(connections),
+                             figsize=(4 * len(connections), 5), sharey=True)
+
+    for ax, (c0, c1) in zip(axes, connections):
+        fwd_name = f"H2_{c0}_{c1}"
+        bwd_name = f"H2_{c1}_{c0}"
+        cap = net_g.links.loc[fwd_name, "p_nom"]
+
+        # Net flow: forward minus backward
+        fwd = net_g.links_t.p0[fwd_name].clip(lower=0)
+        bwd = net_g.links_t.p0[bwd_name].clip(lower=0)
+        net_flow = (fwd + bwd)  # total absolute flow in both directions
+
+        flow_norm = net_flow / cap if cap > 0 else net_flow
+        flow_sorted = flow_norm.sort_values(ascending=False).values
+        hours = range(len(flow_sorted))
+
+        ax.fill_between(hours, flow_sorted, alpha=0.6, color="#2ecc71")
+        ax.axhline(1.0, color="red", linestyle="--", linewidth=1.2, label="Capacity limit")
+        ax.set_title(f"H₂: {c0} ↔ {c1}", fontsize=11)
+        ax.set_xlabel("Hours [h/year]")
+        ax.set_ylim(0, 1.1)
+        ax.grid(True, linestyle="--", alpha=0.4)
+        ax.legend(fontsize=8)
+
+    axes[0].set_ylabel("Flow / Capacity")
+    fig.suptitle("H₂ Pipeline Flow Duration Curves", fontsize=14, y=1.02)
+    plt.tight_layout()
+    plt.show()
+ 
