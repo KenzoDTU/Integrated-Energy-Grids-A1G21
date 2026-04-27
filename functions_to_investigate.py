@@ -5,7 +5,7 @@ import numpy as np
 
 # --- STEP A ---
 # 'battery' is added to the order. It will appear on top of the stack.
-DESIRED_ORDER = ["wind_combined", "CCGT", "solar", "battery"]
+DESIRED_ORDER = ["wind_combined", "solar", "battery", "CCGT"]
 COLORS = {
     "wind_combined": "#235ebc", 
     "solar": "#f39c12", 
@@ -951,9 +951,8 @@ def plot_generation_mix_storage(n, start_date, end_date):
 # --- 2. Battery State of Charge ---
 # --- C1. Battery State of Charge ---
 def plot_battery_soc(n, max_hours):
-    """
-    Heatmap of SOC (days x hours) + summer/winter week detail.
-    """
+    plt.rcParams.update({'font.size': 13})
+    
     soc = n.storage_units_t.state_of_charge.iloc[:, 0]
     soc_pct = soc / (n.storage_units.p_nom_opt.iloc[0] * max_hours) * 100
     year = str(soc.index[0].year)
@@ -970,24 +969,28 @@ def plot_battery_soc(n, max_hours):
     im = axes[0].imshow(heatmap_data.values, aspect='auto', cmap='YlGnBu',
                          origin='lower', vmin=0, vmax=100,
                          extent=[1, 365, 0, 24])
-    axes[0].set_title(f"Battery State of Charge — {year}", fontsize=14)
-    axes[0].set_xlabel("Day of Year")
-    axes[0].set_ylabel("Hour of Day")
+    axes[0].set_title(f"Battery State of Charge — {year}", fontsize=16)
+    axes[0].set_xlabel("Day of Year", fontsize=14)
+    axes[0].set_ylabel("Hour of Day", fontsize=14)
+    axes[0].tick_params(labelsize=12)
     cbar = fig.colorbar(im, ax=axes[0], shrink=0.8, pad=0.02)
-    cbar.set_label("SOC [%]", fontsize=10)
+    cbar.set_label("SOC [%]", fontsize=12)
+    cbar.ax.tick_params(labelsize=11)
     
     # --- Middle: Summer week ---
-    soc_pct.loc[f'{year}-07-01':f'{year}-07-08'].plot(ax=axes[1], color='#8e44ad', linewidth=1.5)
-    axes[1].set_title("Summer Week (Jul 1–8)", fontsize=13)
-    axes[1].set_ylabel("SOC [%]")
+    soc_pct.loc[f'{year}-08-01':f'{year}-08-08'].plot(ax=axes[1], color='#8e44ad', linewidth=1.5)
+    axes[1].set_title("Summer Week (Aug 1–8)", fontsize=15)
+    axes[1].set_ylabel("SOC [%]", fontsize=14)
     axes[1].set_ylim(0, 100)
+    axes[1].tick_params(labelsize=12)
     axes[1].grid(True, linestyle='--', alpha=0.4)
     
     # --- Bottom: Winter week ---
-    soc_pct.loc[f'{year}-01-01':f'{year}-01-08'].plot(ax=axes[2], color='#8e44ad', linewidth=1.5)
-    axes[2].set_title("Winter Week (Jan 1–8)", fontsize=13)
-    axes[2].set_ylabel("SOC [%]")
+    soc_pct.loc[f'{year}-12-23':f'{year}-12-30'].plot(ax=axes[2], color='#8e44ad', linewidth=1.5)
+    axes[2].set_title("Winter Week (Dec 23–30)", fontsize=15)
+    axes[2].set_ylabel("SOC [%]", fontsize=14)
     axes[2].set_ylim(0, 100)
+    axes[2].tick_params(labelsize=12)
     axes[2].grid(True, linestyle='--', alpha=0.4)
     
     plt.tight_layout()
