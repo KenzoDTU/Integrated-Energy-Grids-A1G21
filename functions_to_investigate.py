@@ -48,13 +48,15 @@ def plot_generation_mix(n, start_date, end_date):
     load.plot(ax=ax, color='black', linewidth=2, label='Demand', linestyle='--')
     
     ax.axhline(0, color='black', lw=1) # Zero line for charging/discharging
-    ax.set_title(f"Generation Mix & Storage ({start_date} to {end_date})", fontsize=15)
-    ax.set_ylabel("Power [MW]", fontsize=12)
-    ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    ax.set_title(f"Generation Mix & Storage ({start_date} to {end_date})", fontsize=20)
+    ax.set_xlabel(ax.get_xlabel(), fontsize=20)
+    ax.set_ylabel("Power [MW]", fontsize=20)
+    ax.tick_params(axis='both', labelsize=20)
+    ax.legend(loc='upper left', bbox_to_anchor=(1, 1), fontsize=20)
     ax.grid(True, axis='y', linestyle='--', alpha=0.5)
-    
+
     plt.tight_layout()
-    plt.show()
+    return ax
 
 # --- 2. PLOT PRICES & SCARCITY ---
 def plot_prices_and_scarcity(n, start_date, end_date):
@@ -252,9 +254,9 @@ def plot_mismatch_analysis(n, start_date, end_date):
         f'Curtailment: {curtailment_twh:.2f} TWh',
         f'Backup Energy Needed: {backup_needed_twh:.2f} TWh'
     ], loc='upper right')
-    
+
     plt.tight_layout()
-    plt.show()
+    return plt.gca()
 
     print(f"Analysis Results:")
     print(f" - Total Potential Curtailment: {curtailment_twh:.3f} TWh")
@@ -453,12 +455,13 @@ def plot_capacity_by_year(results):
             ax_bar.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.03,
                         f'{val:.1f}', ha='center', va='bottom', fontsize=8)
     
-    ax_bar.set_ylabel("Optimal Capacity [GW]", fontsize=12)
+    ax_bar.set_ylabel("Optimal Capacity [GW]", fontsize=20)
     ax_bar.set_xticks(x + width * 1.5)
-    ax_bar.set_xticklabels(techs, fontsize=11)
-    ax_bar.legend(title="Year", loc='upper right')
+    ax_bar.set_xticklabels(techs, fontsize=20)
+    ax_bar.tick_params(axis='y', labelsize=20)
+    ax_bar.legend(title="Year", loc='upper right', fontsize=20, title_fontsize=20)
     ax_bar.grid(True, axis='y', linestyle='--', alpha=0.4)
-    
+
     # --- Top: box plot ---
     box_data = []
     positions = []
@@ -468,15 +471,15 @@ def plot_capacity_by_year(results):
         box_data.append(vals)
         positions.append(j)
         colors_list.append(COLORS.get(tech, '#333'))
-    
+
     bp = ax_box.boxplot(box_data, positions=positions, widths=0.5, patch_artist=True,
-                        showmeans=True, 
+                        showmeans=True,
                         meanprops=dict(marker='D', markerfacecolor='black', markersize=5),
                         medianprops=dict(color='black', linewidth=1.5))
     for patch, color in zip(bp['boxes'], colors_list):
         patch.set_facecolor(color)
         patch.set_alpha(0.35)
-    
+
     # Annotate mean ± std
     for j, tech in enumerate(techs):
         vals = [results[y]["p_nom_opt"][tech] / 1e3 for y in years]
@@ -484,15 +487,16 @@ def plot_capacity_by_year(results):
         std = np.std(vals)
         ax_box.text(positions[j] + 0.35, mean, f'{mean:.1f} ± {std:.2f}',
                     ha='left', va='center', fontsize=9, fontstyle='italic')
-    
+
     ax_box.set_xticks(positions)
-    ax_box.set_xticklabels(techs, fontsize=11)
-    ax_box.set_ylabel("GW", fontsize=10)
-    ax_box.set_title("Optimal Installed Capacity by Weather Year", fontsize=15)
+    ax_box.set_xticklabels(techs, fontsize=20)
+    ax_box.tick_params(axis='y', labelsize=20)
+    ax_box.set_ylabel("GW", fontsize=20)
+    ax_box.set_title("Optimal Installed Capacity by Weather Year", fontsize=20)
     ax_box.grid(True, axis='y', linestyle='--', alpha=0.4)
-    
+
     plt.tight_layout()
-    plt.show()
+    return ax_bar, ax_box
 
 
 # --- 2. Production per year + Box plot ---
@@ -519,12 +523,13 @@ def plot_production_by_year(results):
             ax_bar.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1,
                         f'{val:.1f}', ha='center', va='bottom', fontsize=8)
     
-    ax_bar.set_ylabel("Annual Production [TWh]", fontsize=12)
+    ax_bar.set_ylabel("Annual Production [TWh]", fontsize=20)
     ax_bar.set_xticks(x + width * 1.5)
-    ax_bar.set_xticklabels(techs, fontsize=11)
-    ax_bar.legend(title="Year", loc='upper right')
+    ax_bar.set_xticklabels(techs, fontsize=20)
+    ax_bar.tick_params(axis='y', labelsize=20)
+    ax_bar.legend(title="Year", loc='upper right', fontsize=20, title_fontsize=20)
     ax_bar.grid(True, axis='y', linestyle='--', alpha=0.4)
-    
+
     # --- Top: box plot ---
     box_data = []
     positions = []
@@ -534,7 +539,7 @@ def plot_production_by_year(results):
         box_data.append(vals)
         positions.append(j)
         colors_list.append(COLORS.get(tech, '#333'))
-    
+
     bp = ax_box.boxplot(box_data, positions=positions, widths=0.5, patch_artist=True,
                         showmeans=True,
                         meanprops=dict(marker='D', markerfacecolor='black', markersize=5),
@@ -542,7 +547,7 @@ def plot_production_by_year(results):
     for patch, color in zip(bp['boxes'], colors_list):
         patch.set_facecolor(color)
         patch.set_alpha(0.35)
-    
+
     # Annotate mean ± std
     for j, tech in enumerate(techs):
         vals = [results[y]["production_twh"][tech] for y in years]
@@ -550,15 +555,16 @@ def plot_production_by_year(results):
         std = np.std(vals)
         ax_box.text(positions[j] + 0.35, mean, f'{mean:.1f} ± {std:.1f}',
                     ha='left', va='center', fontsize=9, fontstyle='italic')
-    
+
     ax_box.set_xticks(positions)
-    ax_box.set_xticklabels(techs, fontsize=11)
-    ax_box.set_ylabel("TWh", fontsize=10)
-    ax_box.set_title("Annual Energy Production by Weather Year", fontsize=15)
+    ax_box.set_xticklabels(techs, fontsize=20)
+    ax_box.tick_params(axis='y', labelsize=20)
+    ax_box.set_ylabel("TWh", fontsize=20)
+    ax_box.set_title("Annual Energy Production by Weather Year", fontsize=20)
     ax_box.grid(True, axis='y', linestyle='--', alpha=0.4)
-    
+
     plt.tight_layout()
-    plt.show()
+    return ax_bar, ax_box
 
 
 # --- 3. BAR CHART: Capacity factors per year ---
@@ -940,13 +946,15 @@ def plot_generation_mix_storage(n, start_date, end_date):
     y_max = ax.get_ylim()[1]
     ax.set_ylim(y_min, y_max)
     
-    ax.set_title(f"Generation Mix & Storage ({start_date} to {end_date})", fontsize=15)
-    ax.set_ylabel("Power [MW]", fontsize=12)
-    ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
+    ax.set_title(f"Generation Mix & Storage ({start_date} to {end_date})", fontsize=20)
+    ax.set_xlabel(ax.get_xlabel(), fontsize=20)
+    ax.set_ylabel("Power [MW]", fontsize=20)
+    ax.tick_params(axis='both', labelsize=20)
+    ax.legend(loc='upper left', bbox_to_anchor=(1, 1), fontsize=20)
     ax.grid(True, axis='y', linestyle='--', alpha=0.5)
-    
+
     plt.tight_layout()
-    plt.show()
+    return ax
 
 # --- 2. Battery State of Charge ---
 # --- C1. Battery State of Charge ---
@@ -969,32 +977,34 @@ def plot_battery_soc(n, max_hours):
     im = axes[0].imshow(heatmap_data.values, aspect='auto', cmap='YlGnBu',
                          origin='lower', vmin=0, vmax=100,
                          extent=[1, 365, 0, 24])
-    axes[0].set_title(f"Battery State of Charge — {year}", fontsize=16)
-    axes[0].set_xlabel("Day of Year", fontsize=14)
-    axes[0].set_ylabel("Hour of Day", fontsize=14)
-    axes[0].tick_params(labelsize=12)
+    axes[0].set_title(f"Battery State of Charge — {year}", fontsize=20)
+    axes[0].set_xlabel("Day of Year", fontsize=20)
+    axes[0].set_ylabel("Hour of Day", fontsize=20)
+    axes[0].tick_params(labelsize=20)
     cbar = fig.colorbar(im, ax=axes[0], shrink=0.8, pad=0.02)
-    cbar.set_label("SOC [%]", fontsize=12)
-    cbar.ax.tick_params(labelsize=11)
-    
+    cbar.set_label("SOC [%]", fontsize=20)
+    cbar.ax.tick_params(labelsize=20)
+
     # --- Middle: Summer week ---
     soc_pct.loc[f'{year}-08-01':f'{year}-08-08'].plot(ax=axes[1], color='#8e44ad', linewidth=1.5)
-    axes[1].set_title("Summer Week (Aug 1–8)", fontsize=15)
-    axes[1].set_ylabel("SOC [%]", fontsize=14)
+    axes[1].set_title("Summer Week (Aug 1–8)", fontsize=20)
+    axes[1].set_xlabel(axes[1].get_xlabel(), fontsize=20)
+    axes[1].set_ylabel("SOC [%]", fontsize=20)
     axes[1].set_ylim(0, 100)
-    axes[1].tick_params(labelsize=12)
+    axes[1].tick_params(labelsize=20)
     axes[1].grid(True, linestyle='--', alpha=0.4)
-    
+
     # --- Bottom: Winter week ---
     soc_pct.loc[f'{year}-12-23':f'{year}-12-30'].plot(ax=axes[2], color='#8e44ad', linewidth=1.5)
-    axes[2].set_title("Winter Week (Dec 23–30)", fontsize=15)
-    axes[2].set_ylabel("SOC [%]", fontsize=14)
+    axes[2].set_title("Winter Week (Dec 23–30)", fontsize=20)
+    axes[2].set_xlabel(axes[2].get_xlabel(), fontsize=20)
+    axes[2].set_ylabel("SOC [%]", fontsize=20)
     axes[2].set_ylim(0, 100)
-    axes[2].tick_params(labelsize=12)
+    axes[2].tick_params(labelsize=20)
     axes[2].grid(True, linestyle='--', alpha=0.4)
-    
+
     plt.tight_layout()
-    plt.show()
+    return axes
 
 
 # --- 3. Battery operation at different time scales ---
@@ -1086,9 +1096,10 @@ def plot_network_flows(n, bus="Denmark"):
                          net_export_weekly.clip(upper=0),
                          color=COLORS_D["import"], alpha=0.7, label="Net import")
     axes[0].axhline(0, color="black", lw=0.8)
-    axes[0].set_title(f"{bus} — Weekly Average Net Export/Import (2015)", fontsize=14)
-    axes[0].set_ylabel("Power [MW]")
-    axes[0].legend()
+    axes[0].set_title(f"{bus} — Weekly Average Net Export/Import (2015)", fontsize=20)
+    axes[0].set_ylabel("Power [MW]", fontsize=20)
+    axes[0].tick_params(axis='both', labelsize=20)
+    axes[0].legend(fontsize=20)
     axes[0].grid(True, linestyle="--", alpha=0.4)
 
     # ── Bottom: monthly bar chart (TWh) ──
@@ -1099,19 +1110,20 @@ def plot_network_flows(n, bus="Denmark"):
               "Jul","Aug","Sep","Oct","Nov","Dec"]
     axes[1].bar(months, monthly_twh.values, color=colors_bar, alpha=0.85)
     axes[1].axhline(0, color="black", lw=0.8)
-    axes[1].set_title(f"{bus} — Monthly Net Export (positive) / Import (negative) [TWh]", fontsize=14)
-    axes[1].set_ylabel("TWh")
+    axes[1].set_title(f"{bus} — Monthly Net Export (positive) / Import (negative) [TWh]", fontsize=20)
+    axes[1].set_ylabel("TWh", fontsize=20)
+    axes[1].tick_params(axis='both', labelsize=20)
     axes[1].grid(True, axis="y", linestyle="--", alpha=0.4)
 
     total_export = net_export.clip(lower=0).sum() / 1e6
     total_import = net_export.clip(upper=0).sum() / 1e6
     axes[1].set_xlabel(
         f"Annual export: {total_export:.2f} TWh  |  Annual import: {abs(total_import):.2f} TWh",
-        fontsize=11
+        fontsize=20
     )
 
     plt.tight_layout()
-    plt.show()
+    return axes
 
 
 # --- D2. GENERATION MIX FOR ONE BUS (with import shown) ---
@@ -1293,10 +1305,11 @@ def plot_generation_vs_co2(df_f, baseline_mt):
                  colors=[COLORS["wind_combined"], COLORS["CCGT"], COLORS["solar"]],
                  alpha=0.85)
 
-    ax.set_xlabel("Actual CO₂ Emissions [MtCO₂/year]", fontsize=12)
-    ax.set_ylabel("Annual Generation [TWh]", fontsize=12)
-    ax.set_title("Generation Mix vs CO₂ Emissions", fontsize=15)
-    ax.legend(loc="upper left", bbox_to_anchor=(1, 1))
+    ax.set_xlabel("Actual CO₂ Emissions [MtCO₂/year]", fontsize=20)
+    ax.set_ylabel("Annual Generation [TWh]", fontsize=20)
+    ax.set_title("Generation Mix vs CO₂ Emissions", fontsize=20)
+    ax.tick_params(axis='both', labelsize=20)
+    ax.legend(loc="upper left", bbox_to_anchor=(1, 1), fontsize=20)
     ax.grid(True, axis="y", linestyle="--", alpha=0.4)
     ax.set_xlim(left=0)
     ax.set_ylim(bottom=0)
@@ -1304,10 +1317,10 @@ def plot_generation_vs_co2(df_f, baseline_mt):
     # Baseline (unconstrained) reference line
     ax.axvline(baseline_mt, color="black", linestyle="--", lw=1.2, alpha=0.7)
     ax.text(baseline_mt, ax.get_ylim()[1], "unconstrained",
-            fontsize=9, color="black", ha="center", va="bottom")
+            fontsize=12, color="black", ha="center", va="bottom")
 
     plt.tight_layout()
-    plt.show()
+    return ax
 
 
 # --- F2. CAPACITY MIX vs CO2 CONSTRAINT (stacked area) ---
@@ -1334,16 +1347,17 @@ def plot_capacity_vs_co2(df_f, baseline_mt):
 
     _add_reference_lines(ax, baseline_mt, show_historical=True)
 
-    ax.set_xlabel("Actual CO₂ Emissions [MtCO₂/year]", fontsize=12)
-    ax.set_ylabel("Installed Capacity [GW]", fontsize=12)
-    ax.set_title("Optimal Capacity Mix vs CO₂ Emissions", fontsize=15)
-    ax.legend(loc="upper left", bbox_to_anchor=(1, 1))
+    ax.set_xlabel("Actual CO₂ Emissions [MtCO₂/year]", fontsize=20)
+    ax.set_ylabel("Installed Capacity [GW]", fontsize=20)
+    ax.set_title("Optimal Capacity Mix vs CO₂ Emissions", fontsize=20)
+    ax.tick_params(axis='both', labelsize=20)
+    ax.legend(loc="upper left", bbox_to_anchor=(1, 1), fontsize=20)
     ax.grid(True, axis="y", linestyle="--", alpha=0.4)
     ax.set_xlim(left=0)
     ax.set_ylim(bottom=0)
 
     plt.tight_layout()
-    plt.show()
+    return ax
 
 
 # --- F3. SYSTEM COST + CO2 SHADOW PRICE vs CO2 CONSTRAINT ---
@@ -1367,15 +1381,17 @@ def plot_cost_and_price_vs_co2(df_f, baseline_mt):
     # System cost (left axis)
     l1 = ax1.plot(x, df["system_cost"].values, color="#2c3e50", linewidth=2.5,
                   marker="o", markersize=5, label="System cost", zorder=3)
-    ax1.set_ylabel("System Cost [B$/year]", fontsize=12, color="#2c3e50")
-    ax1.tick_params(axis="y", labelcolor="#2c3e50")
+    ax1.set_ylabel("System Cost [B$/year]", fontsize=20, color="#2c3e50")
+    ax1.tick_params(axis="y", labelcolor="#2c3e50", labelsize=20)
+    ax1.tick_params(axis="x", labelsize=20)
     ax1.set_ylim(bottom=0)
 
     # CO2 shadow price (right axis) — keep axis labels black
     l2 = ax2.plot(x, df["co2_shadow_price"].values, color="#e74c3c", linewidth=2,
                   marker="s", markersize=4, linestyle="--",
                   label="CO₂ shadow price", zorder=2)
-    ax2.set_ylabel("CO₂ Shadow Price [$/tCO₂]", fontsize=12, labelpad=55)
+    ax2.set_ylabel("CO₂ Shadow Price [$/tCO₂]", fontsize=20, labelpad=55)
+    ax2.tick_params(axis="y", labelsize=20)
     ax2.set_ylim(bottom=0)
 
     # Policy reference lines (labels placed outside the plot, right of ax2)
@@ -1383,24 +1399,24 @@ def plot_cost_and_price_vs_co2(df_f, baseline_mt):
     ax2.annotate(f"EU ETS\n(~{EU_ETS_PRICE} $/tCO₂)",
                  xy=(1.0, EU_ETS_PRICE), xycoords=("axes fraction", "data"),
                  xytext=(35, 20), textcoords="offset points",
-                 fontsize=8, color="#e74c3c", va="center", ha="left", alpha=0.9)
+                 fontsize=12, color="#e74c3c", va="center", ha="left", alpha=0.9)
     ax2.axhline(DK_CO2_TAX_30, color="#e74c3c", linestyle=":", lw=1, alpha=0.6)
     ax2.annotate(f"DK 2030\n(~{DK_CO2_TAX_30} $/tCO₂)",
                  xy=(1.0, DK_CO2_TAX_30), xycoords=("axes fraction", "data"),
                  xytext=(35, -20), textcoords="offset points",
-                 fontsize=8, color="#e74c3c", va="center", ha="left", alpha=0.9)
+                 fontsize=12, color="#e74c3c", va="center", ha="left", alpha=0.9)
 
     # Baseline (unconstrained) reference line
     ax1.axvline(baseline_mt, color="black", linestyle="--", lw=1.2, alpha=0.7)
     ax1.text(baseline_mt, ax1.get_ylim()[1] * 0.97, "  unconstrained",
-             fontsize=9, color="black", ha="left", va="top")
+             fontsize=12, color="black", ha="left", va="top")
 
-    ax1.set_xlabel("CO₂ Emissions [MtCO₂/year]", fontsize=12)
-    ax1.set_title("System Cost and CO₂ Price vs Emissions", fontsize=15)
+    ax1.set_xlabel("CO₂ Emissions [MtCO₂/year]", fontsize=20)
+    ax1.set_title("System Cost and CO₂ Price vs Emissions", fontsize=20)
 
     # Combined legend
     lines = l1 + l2
-    ax1.legend(lines, [l.get_label() for l in lines], loc="upper center", fontsize=11)
+    ax1.legend(lines, [l.get_label() for l in lines], loc="upper center", fontsize=20)
 
     ax1.grid(True, linestyle="--", alpha=0.4)
 
@@ -1408,7 +1424,7 @@ def plot_cost_and_price_vs_co2(df_f, baseline_mt):
     # Reserve extra space on the right for the external labels
     plt.subplots_adjust(right=0.86)
     ax1.set_xlim(df["co2_actual_mt"].max() * 1.05, 0)
-    plt.show()
+    return ax1, ax2
 
 
 
@@ -1441,31 +1457,33 @@ def plot_energy_transport_comparison(net_g):
     for bar, val in zip(bars, totals):
         ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height(),
                  f"{val:.1f} TWh", ha="center", va="bottom",
-                 fontweight="bold", fontsize=11)
-    ax1.set_ylabel("Annual Energy Transported [TWh]", fontsize=12)
-    ax1.set_title("Total Energy Transport: Electricity vs H₂", fontsize=14)
+                 fontweight="bold", fontsize=14)
+    ax1.set_ylabel("Annual Energy Transported [TWh]", fontsize=20)
+    ax1.set_title("Total Energy Transport: Electricity vs H₂", fontsize=20)
+    ax1.tick_params(axis='both', labelsize=20)
     ax1.grid(True, axis="y", linestyle="--", alpha=0.4)
     ax1.set_ylim(0, max(totals) * 1.15)
- 
+
     # --- Right: per-link breakdown ---
     el_labels = [l.replace("line_", "").replace("_", "→") for l in el_twh.index]
     h2_labels = [l.replace("H2_", "").replace("_", "→") for l in h2_twh.index]
- 
+
     all_labels = el_labels + h2_labels
     all_values = list(el_twh.values) + list(h2_twh.values)
     all_colors = [COLORS_D["wind_combined"]] * len(el_labels) + ["#2ecc71"] * len(h2_labels)
- 
+
     bars2 = ax2.barh(all_labels, all_values, color=all_colors, alpha=0.85,
                      edgecolor="black", linewidth=0.5)
-    ax2.set_xlabel("Annual Energy [TWh]", fontsize=12)
-    ax2.set_title("Energy Transport by Link", fontsize=14)
+    ax2.set_xlabel("Annual Energy [TWh]", fontsize=20)
+    ax2.set_title("Energy Transport by Link", fontsize=20)
+    ax2.tick_params(axis='both', labelsize=20)
     ax2.grid(True, axis="x", linestyle="--", alpha=0.4)
- 
+
     # Separator line between electricity and H2
     ax2.axhline(len(el_labels) - 0.5, color="black", linestyle="-", lw=0.8, alpha=0.5)
- 
+
     plt.tight_layout()
-    plt.show()
+    return ax1, ax2
  
  
 # --- G2. ELECTROLYSER AND FUEL CELL CAPACITIES (grouped bar) ---
@@ -1499,16 +1517,17 @@ def plot_h2_infrastructure(net_g):
             ax.text(bar.get_x() + bar.get_width()/2, bar.get_height(),
                     f"{val:.2f}", ha="center", va="bottom", fontsize=9)
  
-    ax.set_ylabel("Installed Capacity [GW]", fontsize=12)
-    ax.set_title("H₂ Infrastructure: Electrolyser and Fuel Cell Capacities", fontsize=14)
+    ax.set_ylabel("Installed Capacity [GW]", fontsize=20)
+    ax.set_title("H₂ Infrastructure: Electrolyser and Fuel Cell Capacities", fontsize=20)
     ax.set_xticks(x)
-    ax.set_xticklabels(countries)
-    ax.legend()
+    ax.set_xticklabels(countries, fontsize=20)
+    ax.tick_params(axis='y', labelsize=20)
+    ax.legend(fontsize=20)
     ax.grid(True, axis="y", linestyle="--", alpha=0.4)
     ax.set_ylim(0, max(max(elec_cap), max(fc_cap)) * 1.2)
- 
+
     plt.tight_layout()
-    plt.show()
+    return ax
  
  
 # --- G3. H2 PIPELINE UTILIZATION (duration curves) ---
@@ -1541,14 +1560,15 @@ def plot_h2_pipeline_utilization(net_g):
 
         ax.fill_between(hours, flow_sorted, alpha=0.6, color="#2ecc71")
         ax.axhline(1.0, color="red", linestyle="--", linewidth=1.2, label="Capacity limit")
-        ax.set_title(f"H₂: {c0} ↔ {c1}", fontsize=11)
-        ax.set_xlabel("Hours [h/year]")
+        ax.set_title(f"H₂: {c0} ↔ {c1}", fontsize=20)
+        ax.set_xlabel("Hours [h/year]", fontsize=20)
+        ax.tick_params(axis='both', labelsize=20)
         ax.set_ylim(0, 1.1)
         ax.grid(True, linestyle="--", alpha=0.4)
-        ax.legend(fontsize=8)
+        ax.legend(fontsize=14)
 
-    axes[0].set_ylabel("Flow / Capacity")
-    fig.suptitle("H₂ Pipeline Flow Duration Curves", fontsize=14, y=1.02)
+    axes[0].set_ylabel("Flow / Capacity", fontsize=20)
+    fig.suptitle("H₂ Pipeline Flow Duration Curves", fontsize=20, y=1.02)
     plt.tight_layout()
-    plt.show()
+    return axes
  
